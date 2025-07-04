@@ -1,0 +1,52 @@
+name: Auto Versioning and Release
+
+on:
+  push:
+    branches:
+      - dev
+      - alpha
+      - beta
+      - main
+
+jobs:
+  versioning:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Bump version and create git tag
+        run: |
+          # Check which branch we are on
+          if [[ $GITHUB_REF == 'refs/heads/dev' ]]; then
+            # 'dev' branch is for active development (alpha versions)
+            npm version prerelease --preid=alpha # Bump to alpha versions
+          elif [[ $GITHUB_REF == 'refs/heads/alpha' ]]; then
+            # 'alpha' branch is for initial testing (beta versions)
+            npm version prerelease --preid=beta # Bump to beta versions
+          elif [[ $GITHUB_REF == 'refs/heads/beta' ]]; then
+            # 'beta' branch is for final testing (release candidates)
+            npm version prerelease --preid=rc # Bump to release candidate versions
+          elif [[ $GITHUB_REF == 'refs/heads/main' ]]; then
+            # 'main' branch is for stable releases (production version)
+            npm version major # Final version increment (e.g., 1.0.0)
+          fi
+
+      - name: Push tags to GitHub
+        run: |
+          git push origin --tags
+
+      - name: Create GitHub release
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          gh release create $VERSION ./dist/* --title "Release $VERSION" --notes "Release notes for version $VERSION"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
